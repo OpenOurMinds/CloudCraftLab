@@ -10,7 +10,10 @@ import { TaskMarketplace } from '@/components/TaskMarketplace';
 import { ReputationSystemComponent } from '@/components/ReputationSystem';
 import { HostDashboardComponent } from '@/components/HostDashboard';
 import { ClientAPIComponent } from '@/components/ClientAPI';
-import { Cloud, Server, Wallet, Activity, Cpu, ArrowRight, CheckCircle, Play, Trophy, Monitor, Globe } from 'lucide-react';
+import {
+  Cloud, Server, Wallet, Activity, Cpu, ArrowRight,
+  CheckCircle, Play, Trophy, Monitor, Globe, Zap, Shield, Network
+} from 'lucide-react';
 import { NetworkStatus } from '@/lib/network-monitor';
 import { HardwareInfo, PerformanceScore } from '@/lib/hardware-benchmark';
 import { Transaction } from '@/lib/credit-system';
@@ -18,19 +21,35 @@ import { ComputeTask, TaskExecution } from '@/lib/task-execution';
 import { ReputationMetrics } from '@/lib/reputation-system';
 import { HostStatus } from '@/lib/host-dashboard';
 
+const SETUP_STEPS = [
+  { id: 'network',     num: 1, label: 'Network Check',      desc: 'Verify Ethernet stability',            icon: Activity,  color: 'text-cyan-400',   bg: 'bg-cyan-400/10',  tab: 'network'     },
+  { id: 'hardware',    num: 2, label: 'Hardware Test',       desc: 'Benchmark CPU/GPU capabilities',       icon: Cpu,       color: 'text-violet-400', bg: 'bg-violet-400/10',tab: 'hardware'    },
+  { id: 'marketplace', num: 3, label: 'Task Marketplace',  desc: 'Browse tasks for credits',              icon: Play,      color: 'text-emerald-400',bg: 'bg-emerald-400/10',tab: 'marketplace' },
+  { id: 'wallet',      num: 4, label: 'Credit Wallet',       desc: 'Manage earnings & transfers',          icon: Wallet,    color: 'text-yellow-400', bg: 'bg-yellow-400/10',tab: 'wallet'      },
+  { id: 'reputation',  num: 5, label: 'Reputation',          desc: 'Build tiers for better rewards',       icon: Trophy,    color: 'text-orange-400', bg: 'bg-orange-400/10',tab: 'reputation'  },
+  { id: 'host',        num: 6, label: 'Host Dashboard',      desc: 'Monitor your earning command center',  icon: Monitor,   color: 'text-blue-400',   bg: 'bg-blue-400/10',  tab: 'host'        },
+  { id: 'client',      num: 7, label: 'Client API',          desc: 'Submit tasks to the network',          icon: Globe,     color: 'text-pink-400',   bg: 'bg-pink-400/10',  tab: 'client'      },
+];
+
 const Index = () => {
   const [networkStatus, setNetworkStatus] = useState<NetworkStatus | null>(null);
   const [hardwareResults, setHardwareResults] = useState<{ hardware: HardwareInfo; performance: PerformanceScore } | null>(null);
   const [isSetupComplete, setIsSetupComplete] = useState(false);
+  const [activeTab, setActiveTab] = useState('setup');
 
   const handleNetworkStatusChange = (status: NetworkStatus) => {
     setNetworkStatus(status);
-    checkSetupCompletion(status, hardwareResults);
+    // Check eligibility directly from the status object — no require() needed
+    const networkEligible = status.stability === 'stable' || status.stability === 'excellent';
+    setIsSetupComplete(networkEligible && hardwareResults !== null);
   };
 
   const handleHardwareComplete = (results: { hardware: HardwareInfo; performance: PerformanceScore }) => {
     setHardwareResults(results);
-    checkSetupCompletion(networkStatus, results);
+    const networkEligible = networkStatus
+      ? (networkStatus.stability === 'stable' || networkStatus.stability === 'excellent')
+      : false;
+    setIsSetupComplete(networkEligible && true);
   };
 
   const handleTransaction = (transaction: Transaction) => {
@@ -53,297 +72,186 @@ const Index = () => {
     console.log('Host status updated:', status.isOnline);
   };
 
-  const checkSetupCompletion = (network: NetworkStatus | null, hardware: { hardware: HardwareInfo; performance: PerformanceScore } | null) => {
-    const networkEligible = network ? new (require('@/lib/network-monitor').NetworkStabilityMonitor)().isEligibleForTasks() : false;
-    const hardwareComplete = hardware !== null;
-    setIsSetupComplete(networkEligible && hardwareComplete);
-  };
+  const navigateTo = (tab: string) => setActiveTab(tab);
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="container mx-auto py-16 text-center">
-        <div className="flex items-center justify-center mb-4">
-          <Cloud className="h-12 w-12 text-blue-500 mr-3" />
-          <h1 className="text-5xl font-extrabold tracking-tight text-gradient-primary">
-            CloudCraft Lab
-          </h1>
+      {/* ── Hero Header ─────────────────────────────────────────── */}
+      <header className="relative overflow-hidden border-b border-border/50">
+        {/* Ambient glow blobs */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[300px] rounded-full bg-cyan-400/8 blur-3xl" />
+          <div className="absolute top-0 right-0 w-[350px] h-[200px] rounded-full bg-violet-500/6 blur-3xl" />
         </div>
-        <p className="text-lg text-muted-foreground max-w-3xl mx-auto mb-6">
-          Transform your idle computing power into valuable credits. Join the decentralized marketplace for secure, containerized task execution.
-        </p>
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <Badge variant="default" className="text-sm px-3 py-1">
-            <Server className="h-4 w-4 mr-1" />
-            Docker Containers
-          </Badge>
-          <Badge variant="default" className="text-sm px-3 py-1">
-            <Activity className="h-4 w-4 mr-1" />
-            Network Monitoring
-          </Badge>
-          <Badge variant="default" className="text-sm px-3 py-1">
-            <Wallet className="h-4 w-4 mr-1" />
-            Credit System
-          </Badge>
-        </div>
-        {isSetupComplete && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg inline-flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
-            <span className="text-green-800 font-medium">Your node is ready to earn credits!</span>
+
+        <div className="container mx-auto py-16 text-center relative z-10 animate-fade-in">
+          {/* Logo + Title */}
+          <div className="flex items-center justify-center gap-4 mb-5">
+            <div className="relative animate-glow-pulse rounded-2xl p-3 bg-cyan-400/10 border border-cyan-400/25">
+              <Cloud className="h-10 w-10 text-cyan-400" />
+            </div>
+            <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight text-gradient-cyan">
+              CloudCraft Lab
+            </h1>
           </div>
-        )}
+
+          {/* Subtitle */}
+          <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
+            Transform idle computing power into valuable credits.
+            Join the <span className="text-cyan-400 font-medium">secure, containerized P2P marketplace</span> for distributed task execution.
+          </p>
+
+          {/* Feature badges */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+            {[
+              { icon: Server,  label: 'Docker Containers' },
+              { icon: Shield,  label: 'End-to-End Encrypted' },
+              { icon: Network, label: 'P2P Marketplace' },
+              { icon: Zap,     label: 'Real-Time Earnings' },
+            ].map(({ icon: Icon, label }) => (
+              <div
+                key={label}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full glass-card text-sm font-medium text-cyan-300"
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {/* Node-ready status */}
+          {isSetupComplete && (
+            <div className="inline-flex items-center gap-3 px-5 py-3 rounded-xl neon-border bg-cyan-400/5 animate-fade-in">
+              <span className="pulse-dot" />
+              <CheckCircle className="h-5 w-5 text-cyan-400" />
+              <span className="text-cyan-300 font-semibold">Your node is ready to earn credits!</span>
+            </div>
+          )}
+        </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto pb-24">
-        <Tabs defaultValue="setup" className="w-full">
-          <TabsList className="grid w-full grid-cols-8">
-            <TabsTrigger value="setup">Setup</TabsTrigger>
-            <TabsTrigger value="network">Network</TabsTrigger>
-            <TabsTrigger value="hardware">Hardware</TabsTrigger>
-            <TabsTrigger value="marketplace">Tasks</TabsTrigger>
-            <TabsTrigger value="reputation">Reputation</TabsTrigger>
-            <TabsTrigger value="wallet">Wallet</TabsTrigger>
-            <TabsTrigger value="host">Host</TabsTrigger>
-            <TabsTrigger value="client">Client</TabsTrigger>
+      {/* ── Main Content ────────────────────────────────────────── */}
+      <main className="container mx-auto py-10 pb-24">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+
+          {/* Tab bar */}
+          <TabsList className="flex flex-wrap h-auto gap-1 p-1.5 mb-8 glass-card rounded-2xl border-border/50 w-full">
+            {[
+              { value: 'setup',       label: 'Setup',      icon: CheckCircle },
+              { value: 'network',     label: 'Network',    icon: Activity },
+              { value: 'hardware',    label: 'Hardware',   icon: Cpu },
+              { value: 'marketplace', label: 'Tasks',      icon: Play },
+              { value: 'reputation',  label: 'Reputation', icon: Trophy },
+              { value: 'wallet',      label: 'Wallet',     icon: Wallet },
+              { value: 'host',        label: 'Host',       icon: Monitor },
+              { value: 'client',      label: 'Client',     icon: Globe },
+            ].map(({ value, label, icon: Icon }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all
+                           data-[state=active]:bg-cyan-400 data-[state=active]:text-navy-900
+                           data-[state=active]:shadow-glow-cyan data-[state=inactive]:text-muted-foreground
+                           data-[state=inactive]:hover:text-foreground flex-1"
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value="setup" className="space-y-8">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold">Get Started in 7 Steps</h2>
-              <p className="text-muted-foreground max-w-2xl mx-auto">
-                Set up your node to start earning credits by contributing your computing power to the decentralized network.
+          {/* ── Setup Tab ─────────────────────────────────────────── */}
+          <TabsContent value="setup" className="space-y-8 animate-slide-up">
+            <div className="text-center space-y-3">
+              <h2 className="text-3xl font-bold tracking-tight">Get Started in 7 Steps</h2>
+              <p className="text-muted-foreground max-w-xl mx-auto">
+                Configure your node to start earning credits by contributing computing power to the decentralized network.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-              <Card className="text-center">
-                <CardHeader>
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
-                    <Activity className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <CardTitle>1. Network Check</CardTitle>
-                  <CardDescription>
-                    Verify your Ethernet connection meets stability requirements
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => {
-                      const tabsList = document.querySelector('[role="tablist"]');
-                      const networkTab = tabsList?.querySelector('[value="network"]') as HTMLElement;
-                      networkTab?.click();
-                    }}
+            {/* Step cards grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+              {SETUP_STEPS.map((step, i) => {
+                const Icon = step.icon;
+                return (
+                  <Card
+                    key={step.id}
+                    className="glass-card card-hover text-center border-border/40 animate-fade-in"
+                    style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
                   >
-                    Check Network <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="text-center">
-                <CardHeader>
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
-                    <Cpu className="h-6 w-6 text-green-600" />
-                  </div>
-                  <CardTitle>2. Hardware Test</CardTitle>
-                  <CardDescription>
-                    Benchmark your system to determine suitable tasks
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => {
-                      const tabsList = document.querySelector('[role="tablist"]');
-                      const hardwareTab = tabsList?.querySelector('[value="hardware"]') as HTMLElement;
-                      hardwareTab?.click();
-                    }}
-                  >
-                    Run Benchmark <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="text-center">
-                <CardHeader>
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100">
-                    <Play className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <CardTitle>3. Task Marketplace</CardTitle>
-                  <CardDescription>
-                    Browse and execute computing tasks for credits
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => {
-                      const tabsList = document.querySelector('[role="tablist"]');
-                      const marketplaceTab = tabsList?.querySelector('[value="marketplace"]') as HTMLElement;
-                      marketplaceTab?.click();
-                    }}
-                  >
-                    Browse Tasks <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="text-center">
-                <CardHeader>
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-red-100">
-                    <Trophy className="h-6 w-6 text-red-600" />
-                  </div>
-                  <CardTitle>5. Reputation</CardTitle>
-                  <CardDescription>
-                    Build your reputation for better rewards
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={() => {
-                      const tabsList = document.querySelector('[role="tablist"]');
-                      const reputationTab = tabsList?.querySelector('[value="reputation"]') as HTMLElement;
-                      reputationTab?.click();
-                    }}
-                  >
-                    View Reputation <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="text-center">
-                <CardHeader className="p-3">
-                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
-                    <Monitor className="h-5 w-5 text-indigo-600" />
-                  </div>
-                  <CardTitle className="text-sm">7. Host</CardTitle>
-                  <CardDescription className="text-xs">
-                    Monitor your earning dashboard
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-3">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      const tabsList = document.querySelector('[role="tablist"]');
-                      const hostTab = tabsList?.querySelector('[value="host"]') as HTMLElement;
-                      hostTab?.click();
-                    }}
-                  >
-                    Host <ArrowRight className="ml-1 h-3 w-3" />
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card className="text-center">
-                <CardHeader className="p-3">
-                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-100">
-                    <Globe className="h-5 w-5 text-cyan-600" />
-                  </div>
-                  <CardTitle className="text-sm">8. Client</CardTitle>
-                  <CardDescription className="text-xs">
-                    Submit tasks to the network
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="p-3">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      const tabsList = document.querySelector('[role="tablist"]');
-                      const clientTab = tabsList?.querySelector('[value="client"]') as HTMLElement;
-                      clientTab?.click();
-                    }}
-                  >
-                    Client <ArrowRight className="ml-1 h-3 w-3" />
-                  </Button>
-                </CardContent>
-              </Card>
+                    <CardHeader className="p-4 pb-2">
+                      {/* Step number badge */}
+                      <div className="mx-auto mb-3 relative">
+                        <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${step.bg} border border-current/20`}>
+                          <Icon className={`h-5 w-5 ${step.color}`} />
+                        </div>
+                        <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400 text-navy-900 text-[10px] font-bold">
+                          {step.num}
+                        </span>
+                      </div>
+                      <CardTitle className="text-sm font-semibold leading-tight">{step.label}</CardTitle>
+                      <CardDescription className="text-xs mt-1">{step.desc}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-4 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full border-border/60 hover:border-cyan-400/50 hover:text-cyan-400 transition-all text-xs"
+                        onClick={() => navigateTo(step.tab)}
+                      >
+                        Go <ArrowRight className="ml-1 h-3 w-3" />
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
 
-            {/* Status Overview */}
-            <Card>
+            {/* Status overview */}
+            <Card className="glass-card border-border/40">
               <CardHeader>
-                <CardTitle>Setup Status</CardTitle>
-                <CardDescription>
-                  Track your progress toward becoming an active node
-                </CardDescription>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Activity className="h-4 w-4 text-cyan-400" />
+                  Setup Status
+                </CardTitle>
+                <CardDescription>Track your progress toward becoming an active node</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-8 gap-1">
-                  <div className="text-center p-2 border rounded">
-                    <Activity className="h-4 w-4 mx-auto mb-1 text-blue-500" />
-                    <div className="text-xs font-medium">Net</div>
-                    <Badge variant={networkStatus?.stability === 'stable' ? 'default' : 'secondary'} className="text-xs px-1">
-                      {networkStatus ? networkStatus.stability.slice(0, 2).toUpperCase() : 'NT'}
-                    </Badge>
-                  </div>
-                  <div className="text-center p-2 border rounded">
-                    <Cpu className="h-4 w-4 mx-auto mb-1 text-green-500" />
-                    <div className="text-xs font-medium">HW</div>
-                    <Badge variant={hardwareResults ? 'default' : 'secondary'} className="text-xs px-1">
-                      {hardwareResults ? hardwareResults.performance.overall : 'NT'}
-                    </Badge>
-                  </div>
-                  <div className="text-center p-2 border rounded">
-                    <Play className="h-4 w-4 mx-auto mb-1 text-purple-500" />
-                    <div className="text-xs font-medium">Task</div>
-                    <Badge variant={isSetupComplete ? 'default' : 'secondary'} className="text-xs px-1">
-                      {isSetupComplete ? 'RDY' : 'PND'}
-                    </Badge>
-                  </div>
-                  <div className="text-center p-2 border rounded">
-                    <Trophy className="h-4 w-4 mx-auto mb-1 text-red-500" />
-                    <div className="text-xs font-medium">Rep</div>
-                    <Badge variant="secondary" className="text-xs px-1">
-                      NEW
-                    </Badge>
-                  </div>
-                  <div className="text-center p-2 border rounded">
-                    <Wallet className="h-4 w-4 mx-auto mb-1 text-orange-500" />
-                    <div className="text-xs font-medium">Wal</div>
-                    <Badge variant="secondary" className="text-xs px-1">
-                      ACT
-                    </Badge>
-                  </div>
-                  <div className="text-center p-2 border rounded">
-                    <Monitor className="h-4 w-4 mx-auto mb-1 text-indigo-500" />
-                    <div className="text-xs font-medium">Host</div>
-                    <Badge variant="secondary" className="text-xs px-1">
-                      ON
-                    </Badge>
-                  </div>
-                  <div className="text-center p-2 border rounded">
-                    <Globe className="h-4 w-4 mx-auto mb-1 text-cyan-500" />
-                    <div className="text-xs font-medium">API</div>
-                    <Badge variant="secondary" className="text-xs px-1">
-                      RDY
-                    </Badge>
-                  </div>
-                  <div className="text-center p-2 border rounded">
-                    <CheckCircle className="h-4 w-4 mx-auto mb-1 text-green-500" />
-                    <div className="text-xs font-medium">Sys</div>
-                    <Badge variant={isSetupComplete ? 'default' : 'secondary'} className="text-xs px-1">
-                      {isSetupComplete ? 'ON' : 'SET'}
-                    </Badge>
-                  </div>
+                <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                  {[
+                    { icon: Activity, label: 'Net',  active: networkStatus?.stability === 'stable' || networkStatus?.stability === 'excellent', value: networkStatus ? networkStatus.stability.slice(0, 2).toUpperCase() : '—', color: 'text-cyan-400'   },
+                    { icon: Cpu,      label: 'HW',   active: !!hardwareResults,  value: hardwareResults ? String(hardwareResults.performance.overall) : '—', color: 'text-violet-400' },
+                    { icon: Play,     label: 'Task', active: isSetupComplete,    value: isSetupComplete ? 'RDY' : 'PND', color: 'text-emerald-400' },
+                    { icon: Trophy,   label: 'Rep',  active: false,              value: 'NEW', color: 'text-orange-400' },
+                    { icon: Wallet,   label: 'Wal',  active: true,               value: 'ACT', color: 'text-yellow-400' },
+                    { icon: Monitor,  label: 'Host', active: true,               value: 'ON',  color: 'text-blue-400'   },
+                    { icon: Globe,    label: 'API',  active: true,               value: 'RDY', color: 'text-pink-400'   },
+                    { icon: CheckCircle, label: 'Sys', active: isSetupComplete,  value: isSetupComplete ? 'ON' : 'SET', color: 'text-cyan-400' },
+                  ].map(({ icon: Icon, label, active, value, color }) => (
+                    <div
+                      key={label}
+                      className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
+                        active
+                          ? 'border-cyan-400/30 bg-cyan-400/5'
+                          : 'border-border/40 bg-muted/30'
+                      }`}
+                    >
+                      <Icon className={`h-4 w-4 mb-1.5 ${active ? color : 'text-muted-foreground'}`} />
+                      <div className="text-[10px] font-medium text-muted-foreground mb-1">{label}</div>
+                      <span className={`text-[10px] font-bold font-mono ${active ? color : 'text-muted-foreground'}`}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="network" className="space-y-6">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold">Network Stability Monitor</h2>
+          {/* ── Network Tab ──────────────────────────────────────── */}
+          <TabsContent value="network" className="space-y-6 animate-slide-up">
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold tracking-tight">Network Stability Monitor</h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
                 Ensure your connection meets the requirements for reliable task execution
               </p>
@@ -353,9 +261,10 @@ const Index = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="hardware" className="space-y-6">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold">Hardware Benchmark Suite</h2>
+          {/* ── Hardware Tab ─────────────────────────────────────── */}
+          <TabsContent value="hardware" className="space-y-6 animate-slide-up">
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold tracking-tight">Hardware Benchmark Suite</h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
                 Analyze your system capabilities and discover suitable tasks
               </p>
@@ -365,24 +274,23 @@ const Index = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="marketplace" className="space-y-6">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold">Task Marketplace</h2>
+          {/* ── Marketplace Tab ──────────────────────────────────── */}
+          <TabsContent value="marketplace" className="space-y-6 animate-slide-up">
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold tracking-tight">Task Marketplace</h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
                 Browse and execute computing tasks to earn credits
               </p>
             </div>
             <div className="flex justify-center">
-              <TaskMarketplace 
-                onTaskExecute={handleTaskExecute} 
-                onTaskComplete={handleTaskComplete} 
-              />
+              <TaskMarketplace onTaskExecute={handleTaskExecute} onTaskComplete={handleTaskComplete} />
             </div>
           </TabsContent>
 
-          <TabsContent value="reputation" className="space-y-6">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold">Reputation System</h2>
+          {/* ── Reputation Tab ───────────────────────────────────── */}
+          <TabsContent value="reputation" className="space-y-6 animate-slide-up">
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold tracking-tight">Reputation System</h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
                 Build your reputation and unlock better rewards
               </p>
@@ -392,29 +300,10 @@ const Index = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="host" className="space-y-6">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold">Host Dashboard</h2>
-              <p className="text-muted-foreground max-w-2xl mx-auto">
-                Monitor your hardware health and credit accumulation in real-time
-              </p>
-            </div>
-            <HostDashboardComponent onStatusChange={handleHostStatusChange} />
-          </TabsContent>
-
-          <TabsContent value="client" className="space-y-6">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold">Client API</h2>
-              <p className="text-muted-foreground max-w-2xl mx-auto">
-                Submit tasks and monitor progress across the distributed network
-              </p>
-            </div>
-            <ClientAPIComponent />
-          </TabsContent>
-
-          <TabsContent value="wallet" className="space-y-6">
-            <div className="text-center space-y-4">
-              <h2 className="text-3xl font-bold">Credit Wallet</h2>
+          {/* ── Wallet Tab ───────────────────────────────────────── */}
+          <TabsContent value="wallet" className="space-y-6 animate-slide-up">
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold tracking-tight">Credit Wallet</h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
                 Manage your earnings and track your participation in the network
               </p>
@@ -423,8 +312,37 @@ const Index = () => {
               <CreditWalletComponent onTransaction={handleTransaction} />
             </div>
           </TabsContent>
+
+          {/* ── Host Tab ─────────────────────────────────────────── */}
+          <TabsContent value="host" className="space-y-6 animate-slide-up">
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold tracking-tight">Host Dashboard</h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Monitor your hardware health and credit accumulation in real-time
+              </p>
+            </div>
+            <HostDashboardComponent onStatusChange={handleHostStatusChange} />
+          </TabsContent>
+
+          {/* ── Client Tab ───────────────────────────────────────── */}
+          <TabsContent value="client" className="space-y-6 animate-slide-up">
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold tracking-tight">Client API</h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Submit tasks and monitor progress across the distributed network
+              </p>
+            </div>
+            <ClientAPIComponent />
+          </TabsContent>
+
         </Tabs>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-border/40 py-6 text-center text-sm text-muted-foreground">
+        <span className="text-cyan-400/70 font-medium">CloudCraft Lab</span>
+        {' '}— Decentralized computing for everyone
+      </footer>
     </div>
   );
 };

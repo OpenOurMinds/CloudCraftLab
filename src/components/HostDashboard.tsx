@@ -7,14 +7,14 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HostDashboard, HostStatus, ResourceMetrics, TaskSession } from '@/lib/host-dashboard';
-import { 
-  Activity, 
-  Cpu, 
-  HardDrive, 
-  Zap, 
-  Thermometer, 
-  Wind, 
-  Globe, 
+import {
+  Activity,
+  Cpu,
+  HardDrive,
+  Zap,
+  Thermometer,
+  Wind,
+  Globe,
   DollarSign,
   Clock,
   AlertTriangle,
@@ -23,12 +23,49 @@ import {
   Play,
   Square,
   TrendingUp,
-  Server
+  Server,
+  Wifi,
 } from 'lucide-react';
 
 interface HostDashboardProps {
   onStatusChange?: (status: HostStatus) => void;
 }
+
+// Color based on percentage threshold
+const getUsageColor = (val: number) => {
+  if (val >= 85) return 'text-red-400';
+  if (val >= 65) return 'text-yellow-400';
+  return 'text-emerald-400';
+};
+
+const getTempColor = (val: number, isCPU: boolean) => {
+  const limit = isCPU ? 85 : 80;
+  if (val >= limit) return 'text-red-400';
+  if (val >= limit * 0.8) return 'text-yellow-400';
+  return 'text-emerald-400';
+};
+
+// Custom gauge bar with colored gradient
+const UsageBar: React.FC<{ value: number; label: string; sublabel?: string }> = ({ value, label, sublabel }) => {
+  const color =
+    value >= 85 ? 'from-red-500 to-red-400' :
+    value >= 65 ? 'from-yellow-500 to-yellow-400' :
+                  'from-cyan-500 to-emerald-400';
+  return (
+    <div className="space-y-1.5">
+      <div className="flex justify-between items-center text-sm">
+        <span className="text-muted-foreground">{label}</span>
+        <span className={`font-mono font-medium ${getUsageColor(value)}`}>{value.toFixed(1)}%{sublabel ? ` — ${sublabel}` : ''}</span>
+      </div>
+      <div className="relative h-2 w-full rounded-full bg-muted overflow-hidden">
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r ${color} transition-all duration-700`}
+          style={{ width: `${Math.min(value, 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+};
 
 export const HostDashboardComponent: React.FC<HostDashboardProps> = ({ onStatusChange }) => {
   const [dashboard] = useState(() => new HostDashboard());
@@ -49,7 +86,7 @@ export const HostDashboardComponent: React.FC<HostDashboardProps> = ({ onStatusC
     };
 
     const interval = setInterval(updateData, 1000);
-    updateData(); // Initial update
+    updateData();
 
     return () => {
       clearInterval(interval);
@@ -58,305 +95,280 @@ export const HostDashboardComponent: React.FC<HostDashboardProps> = ({ onStatusC
   }, [dashboard, onStatusChange]);
 
   const handleToggleOnline = (isOnline: boolean) => {
-    if (isOnline) {
-      dashboard.goOnline();
-    } else {
-      dashboard.goOffline();
-    }
+    if (isOnline) dashboard.goOnline();
+    else dashboard.goOffline();
   };
 
   const handleStartTask = () => {
     try {
-      dashboard.startTask({
-        type: 'AI Model Training',
-        estimatedDuration: 120, // 2 hours
-        creditsEarned: 150
-      });
+      dashboard.startTask({ type: 'AI Model Training', estimatedDuration: 120, creditsEarned: 150 });
     } catch (error) {
       console.error('Failed to start task:', error);
     }
   };
 
-  const getEligibilityColor = (eligibility: HostStatus['eligibility']) => {
+  const getEligibilityStyle = (eligibility: HostStatus['eligibility']) => {
     switch (eligibility) {
-      case 'high_tier':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'standard':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'ineligible':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'high_tier': return 'border-cyan-400/40 bg-cyan-400/10 text-cyan-300';
+      case 'standard':  return 'border-yellow-400/40 bg-yellow-400/10 text-yellow-300';
+      case 'ineligible':return 'border-red-400/40 bg-red-400/10 text-red-300';
+      default:          return 'border-border/40 bg-muted/30 text-muted-foreground';
     }
   };
 
   const getNetworkIcon = (networkStatus: HostStatus['networkStatus']) => {
     switch (networkStatus) {
-      case 'ethernet':
-        return <Globe className="h-4 w-4 text-green-500" />;
-      case 'wifi':
-        return <Globe className="h-4 w-4 text-yellow-500" />;
-      case 'offline':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Globe className="h-4 w-4 text-gray-500" />;
+      case 'ethernet': return <Globe className="h-4 w-4 text-cyan-400" />;
+      case 'wifi':     return <Wifi  className="h-4 w-4 text-yellow-400" />;
+      case 'offline':  return <XCircle className="h-4 w-4 text-red-400" />;
+      default:         return <Globe  className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
   const formatUptime = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const h = Math.floor(m / 60);
+    const d = Math.floor(h / 24);
+    if (d > 0) return `${d}d ${h % 24}h ${m % 60}m`;
+    if (h > 0) return `${h}h ${m % 60}m`;
+    if (m > 0) return `${m}m ${s % 60}s`;
+    return `${s}s`;
   };
 
-  const formatCurrency = (credits: number) => {
-    return credits.toFixed(2);
-  };
+  const fmt = (n: number) => n.toFixed(2);
 
   return (
     <div className="w-full max-w-7xl space-y-6">
-      {/* Header Status */}
-      <Card>
+
+      {/* ── Command Header ──────────────────────────────────────── */}
+      <Card className="glass-card border-border/40">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Server className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Server className="h-5 w-5 text-cyan-400" />
                 Earning Command Center
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="mt-1">
                 Real-time monitoring of hardware health and credit accumulation
               </CardDescription>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Availability:</span>
-                <Switch
-                  checked={status.isOnline}
-                  onCheckedChange={handleToggleOnline}
-                />
-                <Badge variant={status.isOnline ? "default" : "secondary"}>
-                  {status.isOnline ? "Online" : "Offline"}
-                </Badge>
-              </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">Availability</span>
+              <Switch
+                checked={status.isOnline}
+                onCheckedChange={handleToggleOnline}
+                className="data-[state=checked]:bg-cyan-500"
+              />
+              <Badge
+                variant={status.isOnline ? 'default' : 'secondary'}
+                className={status.isOnline
+                  ? 'bg-cyan-400/15 text-cyan-300 border-cyan-400/40 animate-glow-pulse'
+                  : 'bg-muted text-muted-foreground border-border/40'}
+              >
+                {status.isOnline ? (
+                  <><span className="pulse-dot mr-1.5" style={{ width: 6, height: 6 }} /> Online</>
+                ) : 'Offline'}
+              </Badge>
             </div>
           </div>
         </CardHeader>
+
         <CardContent>
-          {/* Network Alerts */}
+          {/* Alerts */}
           {alerts.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {alerts.map((alert, index) => (
-                <Alert key={index} variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>{alert}</AlertDescription>
+            <div className="space-y-2 mb-5">
+              {alerts.map((alert, i) => (
+                <Alert key={i} className="border-red-400/40 bg-red-400/8">
+                  <AlertTriangle className="h-4 w-4 text-red-400" />
+                  <AlertDescription className="text-red-300">{alert}</AlertDescription>
                 </Alert>
               ))}
             </div>
           )}
 
-          {/* Quick Stats */}
+          {/* KPI tiles */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 border rounded-lg">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                {getNetworkIcon(status.networkStatus)}
-                <span className="text-sm font-medium">Network</span>
-              </div>
-              <Badge className={getEligibilityColor(status.eligibility)}>
-                {status.eligibility.replace('_', ' ').toUpperCase()}
+            {/* Network */}
+            <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-border/40 bg-muted/20 gap-2">
+              {getNetworkIcon(status.networkStatus)}
+              <div className="text-xs text-muted-foreground capitalize">{status.networkStatus}</div>
+              <Badge className={`text-xs ${getEligibilityStyle(status.eligibility)}`}>
+                {status.eligibility.replace('_', ' ')}
               </Badge>
             </div>
-            
-            <div className="text-center p-4 border rounded-lg">
-              <DollarSign className="h-6 w-6 mx-auto mb-2 text-green-500" />
-              <div className="text-lg font-bold">{formatCurrency(status.sessionEarnings)}</div>
-              <div className="text-sm text-muted-foreground">Session Earnings</div>
+
+            {/* Session Earnings */}
+            <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-cyan-400/20 bg-cyan-400/5">
+              <DollarSign className="h-5 w-5 text-cyan-400 mb-1" />
+              <div className="text-2xl font-bold font-mono text-cyan-300">{fmt(status.sessionEarnings)}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Session Earnings</div>
             </div>
-            
-            <div className="text-center p-4 border rounded-lg">
-              <TrendingUp className="h-6 w-6 mx-auto mb-2 text-blue-500" />
-              <div className="text-lg font-bold">{formatCurrency(status.totalEarnings)}</div>
-              <div className="text-sm text-muted-foreground">Total Earnings</div>
+
+            {/* Total Earnings */}
+            <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5">
+              <TrendingUp className="h-5 w-5 text-emerald-400 mb-1" />
+              <div className="text-2xl font-bold font-mono text-emerald-300">{fmt(status.totalEarnings)}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Total Earnings</div>
             </div>
-            
-            <div className="text-center p-4 border rounded-lg">
-              <Clock className="h-6 w-6 mx-auto mb-2 text-purple-500" />
-              <div className="text-lg font-bold">{formatUptime(status.uptime)}</div>
-              <div className="text-sm text-muted-foreground">Uptime</div>
+
+            {/* Uptime */}
+            <div className="flex flex-col items-center justify-center p-4 rounded-xl border border-violet-400/20 bg-violet-400/5">
+              <Clock className="h-5 w-5 text-violet-400 mb-1" />
+              <div className="text-2xl font-bold font-mono text-violet-300">{formatUptime(status.uptime)}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">Uptime</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* ── Detail Tabs ─────────────────────────────────────────── */}
       <Tabs defaultValue="resources" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="resources">Resources</TabsTrigger>
-          <TabsTrigger value="current">Current Task</TabsTrigger>
-          <TabsTrigger value="history">Session History</TabsTrigger>
-          <TabsTrigger value="simulation">Simulation</TabsTrigger>
+        <TabsList className="glass-card border-border/40 p-1 gap-1 rounded-xl w-full grid grid-cols-4">
+          {[
+            { value: 'resources',  label: 'Resources'       },
+            { value: 'current',    label: 'Current Task'    },
+            { value: 'history',    label: 'Session History' },
+            { value: 'simulation', label: 'Simulation'      },
+          ].map(({ value, label }) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="rounded-lg data-[state=active]:bg-cyan-400 data-[state=active]:text-navy-900
+                         data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground"
+            >
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="resources" className="space-y-4">
+        {/* Resources */}
+        <TabsContent value="resources" className="space-y-4 mt-4 animate-fade-in">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* CPU Metrics */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Cpu className="h-5 w-5" />
-                  CPU Metrics
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Usage</span>
-                    <span>{metrics.cpu.usage.toFixed(1)}%</span>
-                  </div>
-                  <Progress value={metrics.cpu.usage} className="h-2" />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-muted-foreground">Temperature</div>
-                    <div className="flex items-center gap-1">
-                      <Thermometer className="h-3 w-3" />
-                      <span className="font-medium">{metrics.cpu.temperature.toFixed(1)}°C</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Frequency</div>
-                    <div className="font-medium">{metrics.cpu.frequency.toFixed(2)} GHz</div>
-                  </div>
-                </div>
-                
-                <div className="text-sm">
-                  <div className="text-muted-foreground">Cores</div>
-                  <div className="font-medium">{metrics.cpu.cores} cores</div>
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* GPU Metrics */}
-            <Card>
+            {/* CPU */}
+            <Card className="glass-card border-border/40">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
-                  GPU Metrics
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <Cpu className="h-4 w-4 text-cyan-400" /> CPU Metrics
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Usage</span>
-                    <span>{metrics.gpu.usage.toFixed(1)}%</span>
-                  </div>
-                  <Progress value={metrics.gpu.usage} className="h-2" />
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>VRAM Usage</span>
-                    <span>{metrics.gpu.vramUsed.toFixed(0)}MB / {metrics.gpu.vram}MB</span>
-                  </div>
-                  <Progress value={(metrics.gpu.vramUsed / metrics.gpu.vram) * 100} className="h-2" />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-muted-foreground">Temperature</div>
-                    <div className="flex items-center gap-1">
-                      <Thermometer className="h-3 w-3" />
-                      <span className="font-medium">{metrics.gpu.temperature.toFixed(1)}°C</span>
+                <UsageBar value={metrics.cpu.usage} label="Usage" />
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="p-2 rounded-lg bg-muted/30">
+                    <div className="text-xs text-muted-foreground mb-0.5">Temp</div>
+                    <div className={`font-mono font-medium ${getTempColor(metrics.cpu.temperature, true)}`}>
+                      {metrics.cpu.temperature.toFixed(1)}°C
                     </div>
                   </div>
-                  <div>
-                    <div className="text-muted-foreground">Model</div>
-                    <div className="font-medium text-xs">{metrics.gpu.name}</div>
+                  <div className="p-2 rounded-lg bg-muted/30">
+                    <div className="text-xs text-muted-foreground mb-0.5">Freq</div>
+                    <div className="font-mono font-medium">{metrics.cpu.frequency.toFixed(2)} GHz</div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-muted/30">
+                    <div className="text-xs text-muted-foreground mb-0.5">Cores</div>
+                    <div className="font-mono font-medium">{metrics.cpu.cores}</div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* System Metrics */}
-            <Card>
+            {/* GPU */}
+            <Card className="glass-card border-border/40">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <HardDrive className="h-5 w-5" />
-                  System Metrics
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <Zap className="h-4 w-4 text-violet-400" /> GPU Metrics
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>RAM Usage</span>
-                    <span>{metrics.system.ramUsage.toFixed(1)}GB / {metrics.system.ramTotal}GB</span>
-                  </div>
-                  <Progress value={(metrics.system.ramUsage / metrics.system.ramTotal) * 100} className="h-2" />
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Disk Usage</span>
-                    <span>{metrics.system.diskUsage}GB / {metrics.system.diskTotal}GB</span>
-                  </div>
-                  <Progress value={(metrics.system.diskUsage / metrics.system.diskTotal) * 100} className="h-2" />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="text-muted-foreground">Fan Speed</div>
-                    <div className="flex items-center gap-1">
-                      <Wind className="h-3 w-3" />
-                      <span className="font-medium">{metrics.system.fanSpeed} RPM</span>
+                <UsageBar value={metrics.gpu.usage} label="Usage" />
+                <UsageBar
+                  value={(metrics.gpu.vramUsed / metrics.gpu.vram) * 100}
+                  label="VRAM"
+                  sublabel={`${metrics.gpu.vramUsed.toFixed(0)} / ${metrics.gpu.vram} MB`}
+                />
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="p-2 rounded-lg bg-muted/30">
+                    <div className="text-xs text-muted-foreground mb-0.5">Temp</div>
+                    <div className={`font-mono font-medium ${getTempColor(metrics.gpu.temperature, false)}`}>
+                      {metrics.gpu.temperature.toFixed(1)}°C
                     </div>
                   </div>
-                  <div>
-                    <div className="text-muted-foreground">Network Latency</div>
-                    <div className="font-medium">{metrics.system.networkLatency.toFixed(0)}ms</div>
+                  <div className="p-2 rounded-lg bg-muted/30 overflow-hidden">
+                    <div className="text-xs text-muted-foreground mb-0.5">Model</div>
+                    <div className="font-mono text-xs font-medium truncate">{metrics.gpu.name}</div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Network Status */}
-            <Card>
+            {/* System */}
+            <Card className="glass-card border-border/40">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Network Status
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <HardDrive className="h-4 w-4 text-emerald-400" /> System Metrics
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
+                <UsageBar
+                  value={(metrics.system.ramUsage / metrics.system.ramTotal) * 100}
+                  label="RAM"
+                  sublabel={`${metrics.system.ramUsage.toFixed(1)} / ${metrics.system.ramTotal} GB`}
+                />
+                <UsageBar
+                  value={(metrics.system.diskUsage / metrics.system.diskTotal) * 100}
+                  label="Disk"
+                  sublabel={`${metrics.system.diskUsage} / ${metrics.system.diskTotal} GB`}
+                />
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="p-2 rounded-lg bg-muted/30">
+                    <div className="text-xs text-muted-foreground mb-0.5">Fan Speed</div>
+                    <div className="font-mono font-medium flex items-center gap-1">
+                      <Wind className="h-3 w-3" />{metrics.system.fanSpeed} RPM
+                    </div>
+                  </div>
+                  <div className="p-2 rounded-lg bg-muted/30">
+                    <div className="text-xs text-muted-foreground mb-0.5">Latency</div>
+                    <div className="font-mono font-medium">{metrics.system.networkLatency.toFixed(0)} ms</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Network */}
+            <Card className="glass-card border-border/40">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  <Activity className="h-4 w-4 text-blue-400" /> Network Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-3 p-3 rounded-xl border border-border/40 bg-muted/20">
                   {getNetworkIcon(status.networkStatus)}
                   <div>
-                    <div className="font-medium capitalize">{status.networkStatus}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {status.networkStatus === 'ethernet' ? 'High-speed connection' : 
-                       status.networkStatus === 'wifi' ? 'Wireless connection' : 'No connection'}
+                    <div className="font-medium capitalize text-sm">{status.networkStatus}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {status.networkStatus === 'ethernet' ? 'High-speed, low latency' :
+                       status.networkStatus === 'wifi'     ? 'Wireless connection'     : 'No connection'}
                     </div>
                   </div>
                 </div>
-                
-                <div className={`p-3 rounded-lg border ${getEligibilityColor(status.eligibility)}`}>
-                  <div className="font-medium">Task Eligibility</div>
-                  <div className="text-sm">
-                    {status.eligibility === 'high_tier' ? 'Eligible for all task tiers' :
-                     status.eligibility === 'standard' ? 'Eligible for standard tasks only' :
-                     'Not eligible for tasks'}
+
+                <div className={`p-3 rounded-xl border text-sm ${getEligibilityStyle(status.eligibility)}`}>
+                  <div className="font-semibold mb-0.5">Task Eligibility</div>
+                  <div className="text-xs opacity-80">
+                    {status.eligibility === 'high_tier'  ? 'Eligible for all task tiers'       :
+                     status.eligibility === 'standard'   ? 'Eligible for standard tasks only'  :
+                                                           'Not eligible for tasks'}
                   </div>
                 </div>
-                
+
                 {status.currentTask && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="font-medium text-blue-800">Currently Processing</div>
-                    <div className="text-sm text-blue-600">{status.currentTask}</div>
+                  <div className="p-3 rounded-xl border border-cyan-400/30 bg-cyan-400/8 text-sm">
+                    <div className="font-semibold text-cyan-300 mb-0.5">Currently Processing</div>
+                    <div className="text-xs text-cyan-400/70">{status.currentTask}</div>
                   </div>
                 )}
               </CardContent>
@@ -364,164 +376,160 @@ export const HostDashboardComponent: React.FC<HostDashboardProps> = ({ onStatusC
           </div>
         </TabsContent>
 
-        <TabsContent value="current" className="space-y-4">
+        {/* Current Task */}
+        <TabsContent value="current" className="space-y-4 mt-4 animate-fade-in">
           {currentSession ? (
-            <Card>
+            <Card className="glass-card border-border/40">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
-                    <Play className="h-5 w-5" />
+                    <Play className="h-5 w-5 text-cyan-400" />
                     {currentSession.type}
                   </CardTitle>
-                  <Badge variant={currentSession.status === 'running' ? 'default' : 'secondary'}>
+                  <Badge className={currentSession.status === 'running'
+                    ? 'bg-cyan-400/15 text-cyan-300 border-cyan-400/40'
+                    : 'bg-muted text-muted-foreground border-border/40'}>
                     {currentSession.status.toUpperCase()}
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
+              <CardContent className="space-y-5">
+                {/* Progress */}
+                <div className="space-y-1.5">
                   <div className="flex justify-between text-sm">
-                    <span>Progress</span>
-                    <span>{currentSession.progress.toFixed(1)}%</span>
+                    <span className="text-muted-foreground">Progress</span>
+                    <span className="font-mono text-cyan-400">{currentSession.progress.toFixed(1)}%</span>
                   </div>
-                  <Progress value={currentSession.progress} className="h-3" />
-                </div>
-                
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <div className="text-muted-foreground">Started</div>
-                    <div className="font-medium">{currentSession.startTime.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Duration</div>
-                    <div className="font-medium">{currentSession.estimatedDuration} minutes</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Credits Earned</div>
-                    <div className="font-medium">{formatCurrency(currentSession.creditsEarned)}</div>
+                  <div className="relative h-3 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-700"
+                      style={{ width: `${currentSession.progress}%` }}
+                    />
+                    <div className="absolute inset-0 shimmer-bar opacity-30" />
                   </div>
                 </div>
-                
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <div className="text-muted-foreground">CPU Usage</div>
-                    <div className="font-medium">{currentSession.resourceUsage.cpu.usage.toFixed(1)}%</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">GPU Usage</div>
-                    <div className="font-medium">{currentSession.resourceUsage.gpu.usage.toFixed(1)}%</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">RAM Usage</div>
-                    <div className="font-medium">{currentSession.resourceUsage.system.ramUsage.toFixed(1)}GB</div>
-                  </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { label: 'Started',         val: currentSession.startTime.toLocaleString() },
+                    { label: 'Duration',        val: `${currentSession.estimatedDuration} min` },
+                    { label: 'Credits Earned',  val: `${fmt(currentSession.creditsEarned)} cr` },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="p-3 rounded-xl bg-muted/20 border border-border/40">
+                      <div className="text-xs text-muted-foreground mb-1">{label}</div>
+                      <div className="font-mono text-sm font-medium">{val}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { label: 'CPU',  val: `${currentSession.resourceUsage.cpu.usage.toFixed(1)}%` },
+                    { label: 'GPU',  val: `${currentSession.resourceUsage.gpu.usage.toFixed(1)}%` },
+                    { label: 'RAM',  val: `${currentSession.resourceUsage.system.ramUsage.toFixed(1)} GB` },
+                  ].map(({ label, val }) => (
+                    <div key={label} className="p-3 rounded-xl bg-muted/20 border border-border/40">
+                      <div className="text-xs text-muted-foreground mb-1">{label}</div>
+                      <div className="font-mono text-sm font-medium text-cyan-300">{val}</div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Square className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-medium mb-2">No Active Task</h3>
-                <p className="text-muted-foreground mb-4">
-                  Start a task to begin earning credits
-                </p>
-                <Button onClick={handleStartTask} disabled={!status.isOnline}>
-                  <Play className="h-4 w-4 mr-2" />
-                  Start Sample Task
+            <Card className="glass-card border-border/40">
+              <CardContent className="flex flex-col items-center justify-center p-12 text-center gap-4">
+                <Square className="h-12 w-12 text-muted-foreground/40" />
+                <div>
+                  <h3 className="text-lg font-semibold mb-1">No Active Task</h3>
+                  <p className="text-sm text-muted-foreground">Start a task to begin earning credits</p>
+                </div>
+                <Button
+                  onClick={handleStartTask}
+                  disabled={!status.isOnline}
+                  className="bg-cyan-400 hover:bg-cyan-300 text-navy-900 font-semibold shadow-glow-cyan"
+                >
+                  <Play className="h-4 w-4 mr-2" /> Start Sample Task
                 </Button>
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
-        <TabsContent value="history" className="space-y-4">
+        {/* Session History */}
+        <TabsContent value="history" className="space-y-3 mt-4 animate-fade-in">
           {sessionHistory.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-medium mb-2">No Session History</h3>
-                <p className="text-muted-foreground">
-                  Completed tasks will appear here
-                </p>
+            <Card className="glass-card border-border/40">
+              <CardContent className="flex flex-col items-center justify-center p-12 text-center gap-3">
+                <Clock className="h-12 w-12 text-muted-foreground/40" />
+                <div>
+                  <h3 className="text-lg font-semibold mb-1">No Session History</h3>
+                  <p className="text-sm text-muted-foreground">Completed tasks will appear here</p>
+                </div>
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
-              {sessionHistory.map((session) => (
-                <Card key={session.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {session.status === 'completed' ? (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-red-500" />
-                        )}
-                        <div>
-                          <div className="font-medium">{session.type}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {session.startTime.toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-medium">{formatCurrency(session.creditsEarned)} credits</div>
-                        <Badge variant={session.status === 'completed' ? 'default' : 'destructive'}>
-                          {session.status}
-                        </Badge>
+            sessionHistory.map((session) => (
+              <Card key={session.id} className="glass-card border-border/40 card-hover">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {session.status === 'completed'
+                        ? <CheckCircle className="h-4 w-4 text-emerald-400" />
+                        : <XCircle    className="h-4 w-4 text-red-400" />}
+                      <div>
+                        <div className="font-medium text-sm">{session.type}</div>
+                        <div className="text-xs text-muted-foreground">{session.startTime.toLocaleString()}</div>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    <div className="text-right">
+                      <div className="font-mono font-semibold text-emerald-300">{fmt(session.creditsEarned)} cr</div>
+                      <Badge
+                        className={`text-xs mt-1 ${session.status === 'completed'
+                          ? 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30'
+                          : 'bg-red-400/10 text-red-300 border-red-400/30'}`}
+                      >
+                        {session.status}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
           )}
         </TabsContent>
 
-        <TabsContent value="simulation" className="space-y-4">
-          <Card>
+        {/* Simulation */}
+        <TabsContent value="simulation" className="mt-4 animate-fade-in">
+          <Card className="glass-card border-border/40">
             <CardHeader>
-              <CardTitle>Network Simulation</CardTitle>
-              <CardDescription>
-                Simulate different network conditions and system states
-              </CardDescription>
+              <CardTitle className="text-sm font-semibold">Network Simulation</CardTitle>
+              <CardDescription>Simulate different network conditions and system states</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => dashboard.simulateNetworkChange('ethernet')}
-                  className="w-full"
-                >
-                  <Globe className="h-4 w-4 mr-2" />
-                  Switch to Ethernet
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => dashboard.simulateNetworkChange('wifi')}
-                  className="w-full"
-                >
-                  <Globe className="h-4 w-4 mr-2" />
-                  Switch to WiFi
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => dashboard.simulateNetworkChange('offline')}
-                  className="w-full"
-                >
-                  <XCircle className="h-4 w-4 mr-2" />
-                  Go Offline
-                </Button>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {[
+                  { label: 'Switch to Ethernet', type: 'ethernet', icon: Globe,       color: 'hover:border-cyan-400/60 hover:text-cyan-400'    },
+                  { label: 'Switch to WiFi',     type: 'wifi',     icon: Wifi,        color: 'hover:border-yellow-400/60 hover:text-yellow-400' },
+                  { label: 'Go Offline',         type: 'offline',  icon: XCircle,     color: 'hover:border-red-400/60 hover:text-red-400'       },
+                ] as const}
+                  .map(({ label, type, icon: Icon, color }) => (
+                  <Button
+                    key={type}
+                    variant="outline"
+                    className={`w-full border-border/40 transition-all ${color}`}
+                    onClick={() => dashboard.simulateNetworkChange(type)}
+                  >
+                    <Icon className="h-4 w-4 mr-2" /> {label}
+                  </Button>
+                ))}
               </div>
-              
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
+                className="w-full border-border/40 hover:border-orange-400/60 hover:text-orange-400 transition-all"
                 onClick={() => dashboard.simulateHighLoad()}
-                className="w-full"
               >
-                <Thermometer className="h-4 w-4 mr-2" />
-                Simulate High Load
+                <Thermometer className="h-4 w-4 mr-2" /> Simulate High Load
               </Button>
             </CardContent>
           </Card>

@@ -1,31 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ClientAPI, TaskSubmission, TaskStatus, TaskResult, MockHost } from '@/lib/client-api';
-import { 
-  Server, 
-  Globe, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
-  Activity, 
-  TrendingUp,
-  DollarSign,
-  Play,
-  Download,
-  Upload,
-  MapPin,
-  Zap,
-  HardDrive,
-  Cpu,
-  RefreshCw,
-  Star
+import {
+  Server, Globe, CheckCircle, Activity,
+  TrendingUp, Download, Upload, MapPin, Zap, Wifi
 } from 'lucide-react';
 
 export const ClientAPIComponent: React.FC = () => {
@@ -34,509 +16,271 @@ export const ClientAPIComponent: React.FC = () => {
   const [results, setResults] = useState<TaskResult[]>([]);
   const [hosts, setHosts] = useState<MockHost[]>([]);
   const [networkStats, setNetworkStats] = useState<any>(null);
-  const [selectedTask, setSelectedTask] = useState<TaskStatus | null>(null);
   const [selectedResult, setSelectedResult] = useState<TaskResult | null>(null);
-
-  // Form state
+  const [submitting, setSubmitting] = useState(false);
+  const [awsBill, setAwsBill] = useState(1500);
+  
   const [formData, setFormData] = useState<TaskSubmission>({
     containerImage: 'tensorflow/tensorflow:latest-gpu',
     datasetLink: 'https://example.com/dataset.zip',
     minPerformanceScore: 70,
     maxCreditSpend: 100,
-    requirements: {
-      cpuCores: 4,
-      gpuVRAM: 4000,
-      ramGB: 8,
-      duration: 60
-    },
+    requirements: { cpuCores: 4, gpuVRAM: 4000, ramGB: 8, duration: 60 },
     priority: 'standard',
-    encrypted: true
+    encrypted: true,
   });
 
   useEffect(() => {
     const loadData = async () => {
       const [allTasks, allHosts, stats] = await Promise.all([
-        api.getAllTasks(),
-        api.getAvailableHosts(),
-        api.getNetworkStats()
+        api.getAllTasks(), api.getAvailableHosts(), api.getNetworkStats(),
       ]);
-      
       setTasks(allTasks);
       setHosts(allHosts);
       setNetworkStats(stats);
     };
-
     loadData();
-    
-    const interval = setInterval(loadData, 5000); // Update every 5 seconds
+    const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
   }, [api]);
 
   const handleSubmitTask = async () => {
-    try {
-      const result = await api.submitTask(formData);
-      console.log('Task submitted:', result);
-      
-      // Refresh tasks
-      const updatedTasks = await api.getAllTasks();
-      setTasks(updatedTasks);
-    } catch (error) {
-      console.error('Failed to submit task:', error);
-    }
-  };
-
-  const handleViewResults = async (taskId: string) => {
-    try {
-      const result = await api.getTaskResults(taskId);
-      setSelectedResult(result);
-    } catch (error) {
-      console.error('Failed to get results:', error);
-    }
-  };
-
-  const handleSimulateNetworkChange = () => {
-    api.simulateNetworkChange();
-    
-    // Refresh data
-    setTimeout(async () => {
-      const [updatedHosts, updatedStats] = await Promise.all([
-        api.getAvailableHosts(),
-        api.getNetworkStats()
-      ]);
-      setHosts(updatedHosts);
-      setNetworkStats(updatedStats);
-    }, 1000);
-  };
-
-  const handleSimulateHostToggle = (hostId: string) => {
-    const host = hosts.find(h => h.id === hostId);
-    if (host) {
-      api.simulateHostStatusChange(hostId, !host.isOnline);
-      
-      // Refresh hosts
-      setTimeout(async () => {
-        const updatedHosts = await api.getAvailableHosts();
-        setHosts(updatedHosts);
-      }, 500);
-    }
-  };
-
-  const getStatusIcon = (status: TaskStatus['status']) => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      case 'running':
-        return <Activity className="h-4 w-4 text-blue-500 animate-pulse" />;
-      case 'completed':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'failed':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
-  const getPriorityColor = (priority: TaskSubmission['priority']) => {
-    switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-800';
-      case 'standard':
-        return 'bg-blue-100 text-blue-800';
-      case 'low':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+    setSubmitting(true);
+    await api.submitTask(formData);
+    setTasks(await api.getAllTasks());
+    setSubmitting(false);
   };
 
   const formatDuration = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const h = Math.floor(m / 60);
+    if (h > 0) return `${h}h ${m % 60}m`;
+    if (m > 0) return `${m}m ${s % 60}s`;
+    return `${s}s`;
   };
 
   return (
-    <div className="w-full max-w-7xl space-y-6">
-      {/* Network Overview */}
+    <div className="w-full space-y-8">
+
+      {/* Network Overview - Bauhaus Grid Block */}
       {networkStats && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Network Overview
-            </CardTitle>
-            <CardDescription>
-              Global distribution of computing resources
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div className="text-center p-4 border rounded-lg">
-                <Server className="h-8 w-8 mx-auto mb-2 text-blue-500" />
-                <div className="text-2xl font-bold">{networkStats.totalHosts}</div>
-                <div className="text-sm text-muted-foreground">Total Hosts</div>
-              </div>
-              
-              <div className="text-center p-4 border rounded-lg">
-                <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-500" />
-                <div className="text-2xl font-bold">{networkStats.onlineHosts}</div>
-                <div className="text-sm text-muted-foreground">Online Hosts</div>
-              </div>
-              
-              <div className="text-center p-4 border rounded-lg">
-                <TrendingUp className="h-8 w-8 mx-auto mb-2 text-purple-500" />
-                <div className="text-2xl font-bold">{networkStats.averagePerformance.toFixed(1)}</div>
-                <div className="text-sm text-muted-foreground">Avg Performance</div>
-              </div>
-              
-              <div className="text-center p-4 border rounded-lg">
-                <Zap className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
-                <div className="text-2xl font-bold">{networkStats.networkDistribution.ethernet}</div>
-                <div className="text-sm text-muted-foreground">Ethernet Hosts</div>
-              </div>
+        <div className="border-4 border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <div className="border-b-4 border-black p-4 flex justify-between items-center bg-black text-white">
+            <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
+              <Globe className="w-5 h-5" /> Protocol Overview
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-x-2 divide-y-2 md:divide-y-0 divide-black">
+            <div className="p-4 text-center">
+              <div className="text-3xl font-black font-mono">{networkStats.totalHosts}</div>
+              <div className="text-xs font-bold uppercase mt-1">Total Nodes</div>
             </div>
-            
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-muted-foreground">
-                Geographic Distribution: {Object.entries(networkStats.geographicDistribution)
-                  .map(([country, count]) => `${country}: ${count}`)
-                  .join(', ')}
-              </div>
-              <Button variant="outline" size="sm" onClick={handleSimulateNetworkChange}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Simulate Network Change
-              </Button>
+            <div className="p-4 text-center bg-gray-100">
+              <div className="text-3xl font-black font-mono">{networkStats.onlineHosts}</div>
+              <div className="text-xs font-bold uppercase mt-1">Nodes Online</div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="p-4 text-center">
+              <div className="text-3xl font-black font-mono">{networkStats.averagePerformance.toFixed(1)}</div>
+              <div className="text-xs font-bold uppercase mt-1">Avg Score</div>
+            </div>
+            <div className="p-4 text-center bg-gray-100">
+              <div className="text-3xl font-black font-mono">{networkStats.networkDistribution.ethernet}</div>
+              <div className="text-xs font-bold uppercase mt-1">Ethernet Linked</div>
+            </div>
+          </div>
+        </div>
       )}
 
+      {/* Flat Tabs */}
       <Tabs defaultValue="submit" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="submit">Submit Task</TabsTrigger>
-          <TabsTrigger value="status">Task Status</TabsTrigger>
-          <TabsTrigger value="results">Results</TabsTrigger>
-          <TabsTrigger value="hosts">Available Hosts</TabsTrigger>
+        <TabsList className="w-full grid grid-cols-2 md:grid-cols-5 p-0 bg-transparent border-t-2 border-l-2 border-r-2 border-black">
+          {[
+            { value: 'submit', label: 'DEPLOY WORK' },
+            { value: 'status', label: 'STATUS' },
+            { value: 'results', label: 'DATA' },
+            { value: 'hosts', label: 'NODES' },
+            { value: 'simulator', label: 'BUDGET' },
+          ].map((tab) => (
+            <TabsTrigger 
+              key={tab.value}
+              value={tab.value}
+              className="rounded-none border-b-2 border-black border-r-2 last:border-r-0 py-3 font-bold text-xs uppercase
+                         data-[state=active]:bg-black data-[state=active]:text-white data-[state=inactive]:bg-white"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="submit" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
-                Submit New Task
-              </CardTitle>
-              <CardDescription>
-                Configure and submit a computing task to the network
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
+        <div className="border-2 border-t-0 border-black bg-white p-6 md:p-8 min-h-[400px]">
+          
+          {/* Submit */}
+          <TabsContent value="submit" className="m-0 space-y-6">
+            <h2 className="text-2xl font-black uppercase border-b-2 border-black pb-2 mb-6">Execution Parameters</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="uppercase font-bold text-xs tracking-wider">Docker Container URI</Label>
+                  <Input 
+                    value={formData.containerImage}
+                    onChange={e => setFormData({ ...formData, containerImage: e.target.value })}
+                    className="border-2 border-black rounded-none shadow-none font-mono focus-visible:ring-0 focus-visible:border-black"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="uppercase font-bold text-xs tracking-wider">Storage Volume Link</Label>
+                  <Input 
+                    value={formData.datasetLink}
+                    onChange={e => setFormData({ ...formData, datasetLink: e.target.value })}
+                    className="border-2 border-black rounded-none shadow-none focus-visible:ring-0 focus-visible:border-black"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="containerImage">Container Image</Label>
-                    <Input
-                      id="containerImage"
-                      value={formData.containerImage}
-                      onChange={(e) => setFormData({...formData, containerImage: e.target.value})}
-                      placeholder="tensorflow/tensorflow:latest-gpu"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="datasetLink">Dataset Link</Label>
-                    <Input
-                      id="datasetLink"
-                      value={formData.datasetLink}
-                      onChange={(e) => setFormData({...formData, datasetLink: e.target.value})}
-                      placeholder="https://example.com/dataset.zip"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="maxCreditSpend">Max Credit Spend</Label>
-                    <Input
-                      id="maxCreditSpend"
+                    <Label className="uppercase font-bold text-xs tracking-wider">Max Bid (CR)</Label>
+                    <Input 
                       type="number"
                       value={formData.maxCreditSpend}
-                      onChange={(e) => setFormData({...formData, maxCreditSpend: parseInt(e.target.value)})}
-                      placeholder="100"
+                      onChange={e => setFormData({ ...formData, maxCreditSpend: parseInt(e.target.value) })}
+                      className="border-2 border-black rounded-none shadow-none font-mono focus-visible:ring-0 focus-visible:border-black"
                     />
                   </div>
-                </div>
-                
-                <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="minPerformanceScore">Min Performance Score</Label>
-                    <Input
-                      id="minPerformanceScore"
+                    <Label className="uppercase font-bold text-xs tracking-wider">Min Score</Label>
+                    <Input 
                       type="number"
                       value={formData.minPerformanceScore}
-                      onChange={(e) => setFormData({...formData, minPerformanceScore: parseInt(e.target.value)})}
-                      placeholder="70"
+                      onChange={e => setFormData({ ...formData, minPerformanceScore: parseInt(e.target.value) })}
+                      className="border-2 border-black rounded-none shadow-none font-mono focus-visible:ring-0 focus-visible:border-black"
                     />
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="cpuCores">CPU Cores</Label>
-                      <Input
-                        id="cpuCores"
-                        type="number"
-                        value={formData.requirements.cpuCores}
-                        onChange={(e) => setFormData({
-                          ...formData, 
-                          requirements: {...formData.requirements, cpuCores: parseInt(e.target.value)}
-                        })}
-                        placeholder="4"
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="gpuVRAM">GPU VRAM (MB)</Label>
-                      <Input
-                        id="gpuVRAM"
-                        type="number"
-                        value={formData.requirements.gpuVRAM}
-                        onChange={(e) => setFormData({
-                          ...formData, 
-                          requirements: {...formData.requirements, gpuVRAM: parseInt(e.target.value)}
-                        })}
-                        placeholder="4000"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="priority">Priority</Label>
-                    <Select 
-                      value={formData.priority} 
-                      onValueChange={(value: any) => setFormData({...formData, priority: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="standard">Standard</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
               </div>
-              
-              <div className="flex justify-end">
-                <Button onClick={handleSubmitTask} className="w-full md:w-auto">
-                  <Play className="h-4 w-4 mr-2" />
-                  Submit Task
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="status" className="space-y-4">
-          <div className="space-y-2">
-            {tasks.length === 0 ? (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <h3 className="text-lg font-medium mb-2">No Tasks Submitted</h3>
-                  <p className="text-muted-foreground">
-                    Submit your first task to see its status here
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-              tasks.map((task) => (
-                <Card key={task.taskId}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        {getStatusIcon(task.status)}
-                        <div>
-                          <div className="font-medium">{task.taskId}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {task.assignedHosts.length} hosts assigned
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">
-                          {task.creditsSpent} credits spent
-                        </Badge>
-                        {task.status === 'completed' && (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleViewResults(task.taskId)}
-                          >
-                            <Download className="h-4 w-4 mr-1" />
-                            Results
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Overall Progress</span>
-                        <span>{task.totalProgress.toFixed(1)}%</span>
-                      </div>
-                      <Progress value={task.totalProgress} className="h-2" />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
-                      {task.assignedHosts.slice(0, 4).map((host, index) => (
-                        <div key={host.hostId} className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${
-                            host.status === 'completed' ? 'bg-green-500' :
-                            host.status === 'running' ? 'bg-blue-500' :
-                            host.status === 'failed' ? 'bg-red-500' : 'bg-yellow-500'
-                          }`} />
-                          <span>{host.hostIp}</span>
-                          <span className="text-muted-foreground">({host.progress.toFixed(0)}%)</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="results" className="space-y-4">
-          {selectedResult ? (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Results for {selectedResult.taskId}</CardTitle>
-                  <Button variant="outline" onClick={() => setSelectedResult(null)}>
-                    Back to List
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">Total Cost</div>
-                    <div className="text-lg font-bold">{selectedResult.totalCost} credits</div>
+                  <div className="space-y-2">
+                    <Label className="uppercase font-bold text-xs tracking-wider">CPU Cores</Label>
+                    <Input 
+                      type="number"
+                      value={formData.requirements.cpuCores}
+                      onChange={e => setFormData({ ...formData, requirements: { ...formData.requirements, cpuCores: parseInt(e.target.value) } })}
+                      className="border-2 border-black rounded-none shadow-none font-mono focus-visible:ring-0 focus-visible:border-black"
+                    />
                   </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Completion Time</div>
-                    <div className="text-lg font-bold">{selectedResult.completionTime.toLocaleString()}</div>
+                  <div className="space-y-2">
+                    <Label className="uppercase font-bold text-xs tracking-wider">GPU RAM (MB)</Label>
+                    <Input 
+                      type="number"
+                      value={formData.requirements.gpuVRAM}
+                      onChange={e => setFormData({ ...formData, requirements: { ...formData.requirements, gpuVRAM: parseInt(e.target.value) } })}
+                      className="border-2 border-black rounded-none shadow-none font-mono focus-visible:ring-0 focus-visible:border-black"
+                    />
                   </div>
                 </div>
-                
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-medium mb-2">Output Data</h4>
-                  <pre className="text-sm overflow-x-auto">
-                    {JSON.stringify(JSON.parse(selectedResult.results.outputData), null, 2)}
-                  </pre>
-                </div>
-                
-                <div className="space-y-2">
-                  <h4 className="font-medium">Host Results</h4>
-                  {selectedResult.results.hostResults.map((hostResult, index) => (
-                    <div key={index} className="p-3 border rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{hostResult.hostId}</span>
-                        <Badge variant={hostResult.success ? 'default' : 'destructive'}>
-                          {hostResult.success ? 'Success' : 'Failed'}
-                        </Badge>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Execution time: {formatDuration(hostResult.executionTime)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Download className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-medium mb-2">No Results Selected</h3>
-                <p className="text-muted-foreground">
-                  Select a completed task to view its results
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="hosts" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {hosts.map((host) => (
-              <Card key={host.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        host.isOnline ? 'bg-green-500' : 'bg-red-500'
-                      }`} />
-                      <span className="font-medium">{host.id}</span>
-                    </div>
-                    <Badge variant={host.isOnline ? 'default' : 'secondary'}>
-                      {host.isOnline ? 'Online' : 'Offline'}
-                    </Badge>
-                  </div>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-3 w-3" />
-                      <span>{host.location}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-3 w-3" />
-                      <span>{host.ip}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-3 w-3" />
-                      <span>Score: {host.performanceScore}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-3 w-3" />
-                      <span>{host.networkType}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Star className="h-3 w-3" />
-                      <span>{host.reputation.toFixed(1)} ⭐</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-1 mt-3">
-                    {host.specialties.map((specialty, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {specialty}
-                      </Badge>
-                    ))}
-                  </div>
-                  
+                <div className="pt-4 border-t-2 border-black mt-4">
                   <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="w-full mt-3"
-                    onClick={() => handleSimulateHostToggle(host.id)}
+                    onClick={handleSubmitTask}
+                    disabled={submitting}
+                    className="w-full bauhaus-button h-14 text-lg"
                   >
-                    {host.isOnline ? 'Take Offline' : 'Bring Online'}
+                    {submitting ? 'DEPLOYING...' : 'DISPATCH TO PROTOCOL'}
                   </Button>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Status */}
+          <TabsContent value="status" className="m-0 space-y-4">
+            {tasks.length === 0 ? (
+              <div className="py-12 text-center text-gray-500 font-mono uppercase font-bold text-lg border-2 border-dashed border-gray-300">
+                NO ACTIVE TASKS
+              </div>
+            ) : tasks.map(task => (
+              <div key={task.taskId} className="border-2 border-black bg-white p-0 flex flex-col md:flex-row">
+                <div className="p-4 border-b-2 md:border-b-0 md:border-r-2 border-black bg-black text-white w-full md:w-1/3 flex flex-col justify-between">
+                  <div>
+                    <div className="text-xl font-bold uppercase mb-1">{task.status}</div>
+                    <div className="font-mono text-xs break-all opacity-70 border-t border-gray-700 pt-1">ID:{task.taskId}</div>
+                  </div>
+                  <div className="mt-4 text-xs font-mono">
+                    VOL: {task.creditsSpent} CR
+                  </div>
+                </div>
+                <div className="p-6 w-full md:w-2/3 flex flex-col justify-center">
+                  <div className="flex justify-between font-mono text-sm font-bold uppercase mb-2">
+                    <span>Protocol Execution</span>
+                    <span>{task.totalProgress.toFixed(0)}%</span>
+                  </div>
+                  <div className="bauhaus-progress-track">
+                    <div className="bauhaus-progress-fill" style={{ width: `${task.totalProgress}%` }} />
+                  </div>
+                </div>
+              </div>
             ))}
-          </div>
-        </TabsContent>
+          </TabsContent>
+
+          {/* Budget Simulator */}
+          <TabsContent value="simulator" className="m-0">
+            <h2 className="text-2xl font-black uppercase text-center mb-8 border-b-4 border-black pb-4 inline-block w-full">Economic Arbitrage Calculator</h2>
+            
+            <div className="max-w-2xl mx-auto space-y-10">
+              <div className="space-y-4">
+                <Label className="text-sm font-bold uppercase tracking-widest block text-center">Monthly Centralized Cloud Invoice</Label>
+                <Input 
+                  type="number"
+                  value={awsBill}
+                  onChange={e => setAwsBill(parseInt(e.target.value) || 0)}
+                  className="w-full text-center text-5xl font-black h-24 border-4 border-black rounded-none shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <div className="p-8 border-b-4 md:border-b-0 md:border-r-4 border-black flex flex-col items-center bg-gray-100">
+                  <div className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Legacy AWS/GCP Cost</div>
+                  <div className="text-3xl font-mono font-black">${awsBill.toLocaleString()}</div>
+                </div>
+                <div className="p-8 flex flex-col items-center bg-black text-white">
+                  <div className="text-xs font-bold uppercase tracking-widest opacity-80 mb-2">CloudCraft Contract Payload</div>
+                  <div className="text-3xl font-mono font-black">${(awsBill * 0.22).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                </div>
+              </div>
+
+              <div className="p-8 border-4 border-black flex flex-col items-center justify-center text-center bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <div className="text-sm font-bold uppercase tracking-widest mb-2">Protocol Savings Escrow</div>
+                <div className="text-5xl md:text-6xl font-black font-mono">${(awsBill * 0.78).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div className="mt-4 bg-black text-white px-4 py-1 font-bold font-mono text-sm uppercase inline-block">78% EFFICIENCY</div>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Results and Hosts empty placeholders to save space for MVP but they exist */}
+          <TabsContent value="results" className="m-0">
+             <div className="py-12 text-center font-mono uppercase font-bold text-lg">Select task from STATUS to view results.</div>
+          </TabsContent>
+
+          <TabsContent value="hosts" className="m-0">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {hosts.map(host => (
+                <div key={host.id} className="border-4 border-black p-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                  <div className="border-b-2 border-black pb-2 mb-2 flex justify-between">
+                    <span className="font-mono font-bold">{host.id}</span>
+                    <span className={`w-3 h-3 border-2 border-black ${host.isOnline ? 'bg-black' : 'bg-white'}`}></span>
+                  </div>
+                  <div className="text-xs font-mono uppercase space-y-1">
+                    <div>LOC: {host.location}</div>
+                    <div>IP: {host.ip}</div>
+                    <div>SCR: {host.performanceScore}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+          
+        </div>
       </Tabs>
     </div>
   );
